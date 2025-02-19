@@ -1,0 +1,645 @@
+---
+title: "Time Series Firearm"
+output: github_document
+author: Parth Chandan
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+```{r packages}
+# Install only if not already installed
+if (!requireNamespace("ggplot2", quietly = TRUE)) install.packages("ggplot2")
+if (!requireNamespace("zoo", quietly = TRUE)) install.packages("zoo")
+if (!requireNamespace("tidyr", quietly = TRUE)) install.packages("tidyr")
+if (!requireNamespace("dplyr", quietly = TRUE)) install.packages("dplyr")
+if (!requireNamespace("forecast", quietly = TRUE)) install.packages("forecast")
+if (!requireNamespace("astsa", quietly = TRUE)) install.packages("astsa")
+if (!requireNamespace("lubridate", quietly = TRUE)) install.packages("lubridate")
+if (!requireNamespace("scales", quietly = TRUE)) install.packages("scales")
+if (!requireNamespace("sjPlot", quietly = TRUE)) install.packages("sjPlot")
+
+```
+
+
+
+```{r libraries}
+library(ggplot2)
+library(zoo)
+library(tidyr)
+library(dplyr)
+library(forecast)
+library(astsa)
+library(lubridate)
+library(scales) 
+library(sjPlot)
+
+```
+
+
+
+### Overview
+
+This section is based on the following manuscript which you can access online at https://link.springer.com/article/10.1007/s11292-017-9313-3
+
+>Ukert, Benjamin, Elena Andreyeva, and Charles C. Branas. "Time series robustness checks to test the effects of the 1996 Australian firearm law on cause-specific mortality." Journal of Experimental Criminology 14 (2018): 141-154.
+
+This study used interrupted time series analysis to estimate the effect of the 1996 Australian law banning firearms and perform robustness checks on previous estimates. 
+
+### Question 1 
+
+Describe the pre-intervention time series of total firearm deaths per 100,000 people (Figure 1a) in terms of trend and seasonality. Note the figure is easier to view in the pdf version of the article, as opposed to the online version. 
+
+
+![Trends in Firearm Deaths per 100,000 People in Australia (1979–1996): Pre-Intervention Analysis for Assessing the 1996 Firearm Law Impact](figure1a.png)
+
+
+
+
+
+**Trend:**
+The plot shows a downward trend in firearm mortality rates over the period from 1979 to 1996.
+The trend line declines consistently, that depicts a declining trend in firearm death rates from 1979 to 1996.
+The trend line steadily drops, demonstrating a progressive decrease in the total firearm mortality rate per 100,000 persons.
+This downward trend implies that the rate of firearm deaths was dropping prior to the 1996 firearm regulation.
+
+
+**Seasonality:**
+The figure does not explicitly display strong seasonal patterns in the annual data, as the dataset is aggregated on a yearly basis.
+
+
+### Question 2 
+
+The authors propose a model that "takes the first difference of the data and estimates an ARIMA model of autoregressive order 1". MY understanding of (i) taking the first difference and (ii) including an autoregressive order 1. 
+
+**Taking the First Difference:**
+
+**What it Means:** Taking the first difference of the data involves subtracting each data point from the one before it. This process creates a new series of values that represent the change between consecutive time points rather than the absolute values.
+
+**Purpose:** First differencing is used to make the data stable, which involves eliminating trends such that the average and variance remain constant across time. In this approach, differencing helps minimize any progressive increase or reduction in firearm fatalities over time, focusing on shorter-term variations that are more important to measuring the intervention's effectiveness.
+
+**Including an Autoregressive Order 1 (AR(1)):**
+The autoregressive order 1 (AR(1)) model is a type of time-series model where the current value of the series (Yt) depends linearly on its immediate past value (Yt-1), with some added noise. It's one of the simplest forms of an autoregressive (AR) model.
+
+
+**What it Means:** An AR(1) model uses the previous value in the time series to predict the current value, based on the assumption that there’s a correlation between consecutive time points.
+
+**Purpose:** Including an AR(1) component helps account for autocorrelation, where each data point is influenced by the previous one. This is important in time-series data like firearm deaths, where values from one year may naturally affect the next. By including AR(1), the model can adjust for these dependencies, improving the accuracy of predictions and isolating the true impact of the intervention.
+
+
+
+### Question 3 
+
+In Table 3, the authors present the results of a robustness check for the ARIMA modelling results presented in Table 1. My understanding of (i) what is the role of the robustness check, (ii) how is it implemented, and (iii) what is the interpretation. 
+
+
+**(i) What is the Role of the Robustness Check?**
+
+The robustness checks aim to test whether the models (Negative Binomial and ARIMA) can correctly identify causal effects by applying artificial law interruptions in periods before the actual 1996 firearm law implementation (pre-1997 period). These artificial interventions are meant to:
+
+Verify that the models do not detect significant impacts during periods when no actual intervention occurred.
+
+Validate whether the models are robust in distinguishing actual causal effects from existing trends or spurious correlations.
+
+
+**(ii) How is it Implemented?**
+
+**Artificial Interventions:**
+
+**How:**
+Create artificial intervention points (e.g., 1990, 1991, 1992, etc.) within the pre-intervention period (1979–1996).
+Treat these points as if a law was implemented and segment the time into pre-artificial law and post-artificial law periods.
+
+The authors create placebo interventions, assigning arbitrary years before the actual 1996 firearm law as the intervention point. These are periods where no policy changes occurred.
+They then re-run the ARIMA model using these placebo intervention points.
+
+**Comparing Results:**
+If the ARIMA model produces significant effects in these placebo periods, it suggests that the model might be capturing underlying trends or noise instead of the actual intervention’s impact.
+If no significant effects are found for the placebo periods, it strengthens the argument that the observed effects in Table 1 are truly due to the 1996 law.
+
+**(iii) What is the Interpretation?**
+
+**Negative Binomial Model:**
+Fails the robustness checks by detecting spurious significant effects during periods of no intervention.
+Its results likely reflect pre-existing trends rather than causal impacts of the law.
+
+**ARIMA Model:**
+Passes the robustness checks, suggesting that it is appropriately specified to distinguish causal effects from existing trends.
+Provides stronger evidence that observed changes in firearm mortality rates are genuinely attributable to the 1996 law.
+
+
+## Section 2 
+
+### Overview
+
+For this part of the assessment I use a subset of data from a study of the impact of a new law on the homicide rate in the state of Florida, USA (data are from: [ 10.1093/ije/dyaa152](https://academic.oup.com/ije/article-abstract/49/6/2010/5917161)). 
+
+On 1 October 2005, Florida implemented the "Stand-your-ground law," which extends the use of lethal force as a legitimate defense where an individual perceives a threat of harm, such as for the protection of private property. For more information see: https://en.wikipedia.org/wiki/Stand-your-ground_law. Florida was one of the first US states to implement this law. 
+
+I evaluate the impact of this law on deaths by homicide. The main outcome variable is the homicide rate per 100,000 population in Florida from January 2000 to December 2007. 
+
+The *flhom.csv* file contains the following variables:
+
+* **date** - Month and year
+* **hom_rate** - Homicide rate per 100,000
+
+The data are contained in your assignment repo and can be read as follows:
+
+``` {r read-data}
+df <- read.csv("flhom.csv", header=TRUE)
+```
+
+```{r dataset}
+df
+```
+
+***
+
+### Question 1 
+Create a plot of the homicide rate over time
+
+Lets convert the data to a suitable time series object for further analysis:
+
+```{r Conversion}
+# Convert the data into a time series object
+# Start = January 2000, Frequency = 12 (monthly data)
+hom_rate_ts <- ts(df$hom_rate, start = c(2000, 1), frequency = 12)
+
+# Print the time series object to verify
+print(hom_rate_ts)
+
+
+```
+
+Lets plot this Data:
+
+```{r Hom_plot}
+# Convert the ts object to a data frame for plotting
+ts_df <- data.frame(
+  date = seq(as.Date("2000-01-01"), by = "month", length.out = length(hom_rate_ts)),
+  hom_rate = as.numeric(hom_rate_ts)
+)
+
+# Create the plot
+ggplot(ts_df, aes(x = date, y = hom_rate)) +
+  geom_line(color = "blue", size = 1) +  # Line plot for time series
+  geom_point(shape = 21, fill = "white", size = 2) +  # Points on the line
+  labs(
+    title = "Homicide Rate in Florida (2000-2007)",
+    subtitle = "Impact of the Stand-your-ground Law in October 2005",
+    caption = "Source: Data from: [ 10.1093/ije/dyaa152](https://academic.oup.com/ije/article-abstract/49/6/2010/5917161)",
+    x = "Year",
+    y = "Homicide Rate per 100,000"
+  ) +
+  geom_vline(xintercept = as.Date("2005-10-01"), linetype = "dashed", color = "red", size = 1) +  # Mark the law implementation
+  annotate("text", x = as.Date("2005-10-01"), y = max(ts_df$hom_rate) * 0.95, 
+           label = "Law Implemented", color = "red", angle = 90, vjust = -0.5) +
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year") +  # Format the x-axis
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+```
+**Description of the Plot:**
+The plot illustrates the monthly homicide rate per 100,000 population in Florida from 2000 to 2007. The vertical red dashed line indicates the implementation of the "Stand-your-ground" law in October 2005.
+
+**Observations:**
+
+**Trend:**
+The homicide rate fluctuates between approximately 0.3 and 0.8 per 100,000.
+After October 2005, there appears to be an increase in variability, with several higher spikes observed in 2006 and 2007.
+
+
+### Question 2 
+Describe the homicide rate time series in terms of the trend, seasonality, and outliers. 
+
+
+
+Lets split the plot to understand the trend and seasonality using decompose() function
+```{r decompose}
+# Perform classical decomposition
+decomp <- decompose(hom_rate_ts)
+
+# Plot the decomposition
+plot(decomp, col = "blue", lwd = 2)  # Default decomposition plot
+
+
+```
+
+This decomposition plot separates the time series into its components:
+
+**Observed:** The original homicide rate data showing fluctuations over time.
+**Trend:** A gradual upward trend in the homicide rate is visible from around 2005 to 2007.
+**Seasonal:** Regular repeating patterns are present, indicating some seasonality, though the magnitude is relatively small.
+**Random:** Residual variability after removing the trend and seasonal components, showing no distinct pattern.
+
+
+```{r seasonplot}
+# Load necessary library
+library(forecast)
+
+# Seasonal plot
+ggseasonplot(hom_rate_ts, 
+             year.labels = TRUE, 
+             year.labels.left = TRUE, 
+             col = rainbow(8), 
+             main = "Seasonal Plot of Homicide Rate in Florida (2000-2007)",
+             ylab = "Homicide Rate per 100,000",
+             xlab = "Month") +
+  theme_minimal()
+
+```
+
+
+**1. Trend:**
+The trend component of the time series reveals a relatively stable homicide rate in Florida from 2000 to 2005, with no significant upward or downward movement. However, starting around 2005 and particularly after October 2005, when the "Stand-your-ground" law was implemented, there is a noticeable upward trend in the homicide rate. This steady increase continues through to the end of the series in 2007, suggesting a potential long-term impact of the law or other societal changes occurring during this time.
+
+**2. Seasonality:**
+The seasonal component shows recurring patterns in homicide rates, with certain months consistently experiencing higher or lower rates across the years. For instance, months like June and August tend to exhibit higher homicide rates, while February and November have lower rates. These seasonal effects may reflect broader social or environmental factors, such as increased activity in the summer months, which could influence crime rates.
+
+**3. Outliers and Irregularities:**
+While the overall trend and seasonality explain much of the variation, there are notable outliers and irregularities. A significant spike occurs in mid-2007, where the homicide rate reaches unusually high levels, potentially indicating an exceptional event or reporting anomaly during this period. Additionally, there is a smaller irregularity around mid-2005, just before the implementation of the law, which could be coincidental or related to the anticipation of the policy change.
+
+
+
+
+**Statistical properties of time-series data**
+
+It was stationary and then after 2005 an upward trend started lets use log to make the data easier to analyze, interpret, and model by stabilizing variance and potentially linearizing trends.
+
+```{r log}
+
+# Apply the logarithmic transformation to the original time series
+log_ts <- log(hom_rate_ts)
+
+# Apply differencing to the log-transformed time series
+diff_log_ts <- diff(log_ts)
+
+
+# Plot the original series
+plot(hom_rate_ts, main = "Original Time Series", ylab = "Homicide Rate", xlab = "Time")
+
+# Plot the log-transformed series
+plot(log_ts, main = "Log-Transformed Time Series", ylab = "Log(Homicide Rate)", xlab = "Time")
+
+# Plot the differenced log-transformed series
+plot(diff_log_ts, main = "Differenced Log-Transformed Time Series", ylab = "Diff Log(Homicide Rate)", xlab = "Time")
+```
+
+Differencing removes trends and converts the series to stationary form, while log transformation stabilizes variance. The resulting series fluctuates around zero, indicating detrended and variance-stabilized data, which is suitable for ARIMA modeling and other time series analyses
+
+
+
+Lets check for auto correlation
+```{r Lag1_plot}
+# Lag-1 plot for the original dataset
+lag1.plot(hom_rate_ts, main = "Lag-1 Plot of Original Time Series")
+```
+
+The Lag-1 Plot visualizes the relationship between the homicide rate at time t and its value at time t−1. 
+The positive slope of the fitted red line indicates some level of autocorrelation, with a correlation coefficient of 0.31. This suggests that the current homicide rate is moderately influenced by its immediate past value, a key characteristic of time series data.
+
+
+
+Lets check auto-correlation with acf plot
+```{r acf}
+acf(hom_rate_ts, main = "Autocorrelation of Homicide Rate Time Series")
+ # Autocorrelation at later orders too. Peak at 12 months, reflecting seasonality
+```  
+The Autocorrelation Function (ACF) Plot shows the correlation of the homicide rate time series with its lagged values. The significant spike at lag 1 indicates a strong autocorrelation with the previous month's value, consistent with a time-dependent structure. Subsequent lags show smaller correlations, mostly within the confidence intervals (blue dashed lines), suggesting weaker relationships beyond lag 1. 
+
+
+Lets check for correlation between a variable and its lagged values that is not explained by correlations at lower order lags using pacf
+
+```{r pacf}
+pacf(hom_rate_ts)
+```
+
+
+3. PACF Plot
+**Interpretation:**
+The PACF plot also shows a significant spike at lag 1, indicates a strong direct relationship with the first lag which can be ignored.
+Subsequent lags are present but insignificant, suggesting that the series does not require higher-order AR terms.
+
+
+
+
+### Question 3 (15 marks) 
+Estimate the effect of the stand-your-ground law using segmented regression and ARIMA. Comment on the fit/appropriateness of each model, and state which model you believe best describes the association between the intervention and the homicide rate over time. 
+
+
+To start with Segmented regression we need to make 4 vectors: time, policy policy_after and month
+```{r time}
+# Create a time vector as a time series object
+time <- seq(1, length(hom_rate_ts)) |> ts(start = c(2000, 1), frequency = 12)
+
+# Print the time vector
+print(time)
+
+
+```
+```{r policy}
+# Create the policy vector (0 before Oct 2005, 1 from Oct 2005 onward)
+policy <- ifelse(zoo::as.yearmon(time(hom_rate_ts)) >= 'Oct 2005', 1, 0) |> 
+  ts(start = c(2000, 1), frequency = 12)
+
+# Print the policy vector
+print(policy)
+
+```
+```{r policy_after}
+# Create the policy_after variable using cumsum on the policy variable
+policy_after <- cumsum(policy)
+
+# Print the policy_after vector
+print(policy_after)
+```
+```{r month}
+# Create seasonal dummy variables
+month <- seasonaldummy(hom_rate_ts)  # Replace hom_rate_ts with your time series object
+
+# Print the first few rows
+head(month)
+```
+The policy vector represents the immediate effect of the intervention (e.g., the Stand-Your-Ground law), distinguishing pre- and post-implementation periods.
+The policy_after vector captures the cumulative, long-term effects over time. 
+The month vector accounts for seasonality, addressing recurring monthly variations in homicide rates
+The time vector captures underlying linear trends, controlling for gradual changes unrelated to the policy. 
+Together, these vectors ensure the model accurately isolates the policy's impact from natural trends and seasonal fluctuations in the time series.
+
+```{r model1}
+# Fit segmented regression model with seasonality
+model1 <- lm(hom_rate_ts ~ 1 + time + policy + policy_after + month)
+
+# Model summary
+summary(model1)
+```
+
+Interpretation:
+Intercept (𝛽0): The baseline homicide rate (not practically meaningful as it reflects time zero).
+
+Baseline slope (𝛽1): The average monthly change in homicide rates before the intervention.
+
+Step change (𝛽2): Immediate effect of the intervention on the homicide rate.
+
+Slope change (𝛽3): Whether the trend of homicide rates increased, decreased, or stayed the same after the intervention.
+ 
+**Intercept:** The baseline homicide rate (when all other variables are zero) is statistically significant (p < 0.001) and estimated at 0.5018.
+
+**Time:** The coefficient for the time variable is not statistically significant (p = 0.230), suggesting no consistent linear trend in the homicide rate over time, independent of other factors.
+
+**Policy:** The immediate effect of the Stand-Your-Ground law is marginally significant (p = 0.066), with an estimated increase of 0.047 in the homicide rate. This suggests a potential immediate impact, though the evidence is weak.
+
+**Policy After:** The cumulative effect of the law over time is statistically significant (p = 0.005) with an increase of 0.004 per unit time, indicating a sustained upward trend in homicide rates after the law's implementation.
+
+**Seasonality (Months):** Some months (e.g., February, July) show statistically significant effects:
+
+February: A significant decline in homicide rates (p = 0.014, estimate -0.068).
+July: A significant increase in homicide rates (p = 0.011, estimate 0.070).
+
+**Model Fit:** The adjusted R-squared value (0.4626) indicates that approximately 46% of the variation in homicide rates is explained by the model. The overall model is significant (F-statistic p-value < 0.001).
+
+
+
+Lets test the model diagnostics
+```{r model1_plot}
+# Check residuals
+plot(model1)  # Diagnostic plots for residuals
+```
+
+**Residuals vs Fitted Plot:**
+The residuals are randomly scattered around zero with no clear pattern, indicating that the model fits the data reasonably well. However, there is slight curvature suggesting potential minor issues with model specification or non-linearity.
+
+**Q-Q Plot of Standardized Residuals:**
+The residuals mostly align with the theoretical quantiles of a normal distribution, indicating that the residuals are approximately normally distributed. There are minor deviations at the tails, but they do not raise significant concerns.
+
+**Scale-Location Plot:**
+The spread of residuals appears fairly constant across the range of fitted values, which suggests homoscedasticity (constant variance). However, the slight upward slope of the red line may indicate mild heteroscedasticity.
+Residuals vs Leverage Plot:
+
+Most data points have low leverage, and no Cook's distance values exceed the threshold, indicating that there are no highly influential outliers affecting the model.
+
+
+```{r box_test}
+Box.test(model1$residuals, type = "Ljung-Box", lag = 12)
+```
+The p-value (0.1419) indicates that the null hypothesis (no significant autocorrelation in the residuals) cannot be rejected.
+This suggests that the model's residuals do not exhibit significant autocorrelation and supports the adequacy of the model in accounting for the time series structure.
+
+
+What if there was a delayed effect?
+Lets make policy.lag1 and policy_after.lag1 to see if the effect was more significant after 1 month
+```{r lag}
+# Create policy.lag1 (1 starting one month after the policy)
+policy.lag1 <- ifelse(zoo::as.yearmon(time(hom_rate_ts)) >= 'Nov 2005', 1, 0) |>
+  ts(start = c(2000, 1), frequency = 12)
+
+# Create 'after.lag1': Time since delayed intervention (starting from Nov 2005)
+policy_after.lag1 <- cumsum(policy.lag1)
+
+
+# Print to verify the created vectors
+policy.lag1
+policy_after.lag1
+
+```
+
+
+Fit the model:
+```{r lag_model}
+# Fit the second model with delayed intervention
+model2 <- lm(hom_rate_ts ~ time + policy.lag1 + policy_after.lag1 + month)
+
+# View summary statistics for model2
+summary(model2)
+
+# Compare AIC values of the two models
+aic_model1 <- AIC(model1)  # AIC for the first model
+aic_model2 <- AIC(model2)  # AIC for the second model
+
+cat("AIC of model1 (immediate policy effect):", aic_model1, "\n")
+cat("AIC of model2 (delayed policy effect):", aic_model2, "\n")
+
+```
+
+**Model Simplicity:** Model 1 is slightly simpler, as it doesn't include the lagged policy variables, yet it achieves almost the same results as Model 2.
+
+**Adjusted R-squared:** Both models have very close adjusted R-squared values (~0.46), indicating they explain a similar proportion of the variance in the homicide rate.
+
+**AIC Comparison:** The AIC difference between Model 1 and Model 2 is minimal (-272.0994 vs. -272.5027), which doesn't strongly favor one over the other.
+
+**Ease of Interpretation:** Model 1 is easier to interpret, especially if you are focusing on the immediate effects of the policy implementation.
+
+
+Lets now make an arima model:
+```{r auto_model}
+auto_model <- auto.arima(hom_rate_ts)
+auto_model
+```
+
+
+
+Fitting the auto arima values.
+```{r sarima_model}
+model_3 <- sarima(hom_rate_ts,xreg=cbind(policy,policy_after), p=0, d=1, q=1, P=0, D=0, Q=2, S=12)
+```
+
+**Standardized Residuals:** The residuals appear to fluctuate randomly around zero with no clear patterns, indicating no obvious violation of model assumptions.
+
+**ACF of Residuals:** The autocorrelation function shows that most residual autocorrelations are within the confidence bounds, suggesting no significant remaining autocorrelation.
+
+**Normal Q-Q Plot:** The residuals align closely with the theoretical quantiles, implying that the residuals are approximately normally distributed.
+
+**p-values for Ljung-Box Statistic:** Most p-values are above the significance threshold (0.05), suggesting no significant lack of fit or autocorrelation in the residuals.
+
+
+Lets see the predictions with out sarima model:
+
+```{r forecast}
+sarima.for(hom_rate_ts, p=0, d=1, q=1, P=0, D=0, Q=2, S=12, n.ahead=12)
+```
+
+The forecast shows a continuation of the prior trend but with a widening prediction interval, reflecting increased uncertainty over time.
+Comparing the forecasted trend with observed post-intervention data highlights deviations, which may indicate the effect of external factors, like the intervention. If the intervention hadn't occurred, the homicide rates might have followed the forecasted trajectory.
+
+
+
+Lets finally see both the models:
+
+```{r sjplot}
+sjPlot::tab_model(model1, digits = 1)
+
+```
+
+
+
+
+```{r sarima_coef}
+# Extract coefficients and standard errors
+sarima_coef <- model_3$ttable
+
+
+
+# Print the coefficients
+cat("SARIMA Model Coefficients:\n")
+print(sarima_coef)
+
+```
+
+
+
+
+### Question 4 
+Using the "best" model, I summarise your findings and write a conclusion describing the impact of the law on the homicide rate in Florida. 
+
+
+**Comparison of Segmented Regression Model and SARIMA Model**
+
+
+**Segmented Regression Model:**
+
+**Key Predictors:**
+
+Policy Effect (Step Change): Estimate = 0.0, CI = -0.0 to 0.1, p = 0.066 (not statistically significant, but borderline).
+Policy After (Slope Change): Estimate = 0.0, CI = 0.0 to 0.0, p = 0.005 (statistically significant).
+Seasonal Effects: Some months (e.g., February, July) have statistically significant coefficients indicating seasonal variation in homicide rates.
+Fit and Interpretation:
+
+R² / Adjusted R²: 0.542 / 0.463, indicating the model explains around 54% of the variance in the data.
+
+
+**SARIMA Model:**
+
+**Key Predictors:**
+
+Policy Effect (Step Change): Estimate = 0.0473, SE = 0.0232, p = 0.044 (statistically significant).
+Policy After (Slope Change): Estimate = 0.0037, SE = 0.0013, p = 0.005 (statistically significant).
+Seasonal Components (SAR and SMA terms): Some SARIMA coefficients are significant, but these represent autoregressive components rather than straightforward seasonal patterns.
+
+**Fit and Interpretation:**
+SARIMA accounts for autocorrelation and seasonality, but it may be harder to interpret for non-statistical audiences.
+The segmented regression model provides direct estimates of the immediate (policy) and sustained (policy after) effects of the intervention, making it easier to communicate findings to policymakers and stakeholders.
+While both models find statistically significant sustained effects ("policy after"), the segmented regression better isolates seasonal effects through dummy variables.
+
+Thus I feel segmented regression model(model1) is a better fit.
+
+
+**Impact of law on the homicide rate:**
+Lets plot a graph to see what would happen if the law was never implemented and compare it out model.
+
+```{r counterfactual}
+# Create a data frame representing the intervention had it not occurred (noint)
+noint <- data.frame(
+  policy = rep(0, length(hom_rate_ts)),
+  policy_after = rep(0, length(hom_rate_ts)),
+  month = seasonaldummy(hom_rate_ts)
+)
+
+# Predict the series had the intervention NOT occurred
+cf <- predict(model1, newdata = noint)
+
+# Merge the observed and counterfactual data
+hom_rate_cf <- data.frame(
+  Observed = as.numeric(hom_rate_ts),
+  Counterfactual = as.numeric(cf),
+  Time = time(hom_rate_ts)
+)
+
+
+# Prepare data for ggplot2
+library(tidyr)
+hom_rate_cf_long <- hom_rate_cf %>%
+  pivot_longer(cols = c(Observed, Counterfactual), names_to = "Type", values_to = "Rate")
+
+# Plot the data
+library(ggplot2)
+ggplot(hom_rate_cf_long, aes(x = Time, y = Rate, color = Type, linetype = Type)) +
+  geom_line(size = 1) +
+  geom_vline(xintercept = 2005.75, linetype = "dashed", color = "black") +
+  annotate("text", x = 2006, y = max(hom_rate_cf_long$Rate), label = "Intervention (Oct 2005)", color = "black", angle = 90, vjust = -0.5) +
+  labs(
+    title = " Florida Homicide Rates with Counterfactual (2000–2007)",
+    x = "Time (Years)",
+    y = "Homicide Rate per 100,000 People",
+    color = "Legend",
+    linetype = "Legend"
+  ) +
+  scale_color_manual(values = c("Observed" = "maroon", "Counterfactual" = "blue")) +
+  theme_minimal()
+
+```
+
+This plot effectively demonstrates the observed versus counterfactual homicide rates in Florida from 2000 to 2007. The counterfactual series (blue line) represents the hypothetical scenario where the "Stand-your-ground" law was not implemented, while the observed series (red dashed line) reflects the actual data following the intervention.
+
+From the plot, the counterfactual series (blue line) suggests that without the implementation of the Stand-your-ground law, homicide rates in Florida would have likely remained relatively stable or slightly declined, following the pre-intervention trend. However, the observed rates (red dashed line) post-intervention show a marked increase, indicating that the law may have contributed to an uptick in homicide rates compared to what would have been expected in its absence.
+
+
+
+### Question 5 
+
+
+
+**Negative Control Series:**
+
+**Non-firearm-related homicide rates in Florida (2000–2007).**
+
+The "Stand-your-ground" law specifically impacts self-defense scenarios, which are more likely to involve firearms. Non-firearm-related homicides (e.g., those involving knives or blunt objects) are unlikely to be directly influenced by this law, making them a suitable negative control.
+If both firearm and non-firearm homicide rates change similarly after the intervention, the observed effect may not be due to the "Stand-your-ground" law but rather a broader societal factor.
+
+
+**Firearm-related homicide rates in North Carolina, USA (2000–2007).**
+
+**Why North Carolina?**
+North Carolina, like Florida, is a southeastern state in the USA with similar demographic and economic conditions during the study period. Importantly, North Carolina did not implement a "Stand-your-ground" law during the study period (2000–2007), making it an ideal negative control.
+
+As part of the same region, North Carolina likely experienced similar external influences (e.g., economic conditions, regional cultural attitudes toward firearms) during the study period, allowing for a meaningful comparison.
+If firearm-related homicide rates in Florida increase post-law while North Carolina’s rates remain unchanged, this suggests the observed effect in Florida is specifically due to the law.
+If North Carolina’s rates stay stable while Florida’s change, it strengthens the causal inference.
+
+
+
+
